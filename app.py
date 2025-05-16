@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template
 import pandas as pd
 import os
 from sklearn.linear_model import LinearRegression
@@ -58,6 +58,9 @@ def load_and_preprocess_data():
                     all_data[provinsi] = []
                 all_data[provinsi].append((year, pertumbuhan))
 
+    for provinsi in all_data:
+        all_data[provinsi].sort(key=lambda item: item[0])
+
     national_data = []
     years = sorted(list(set(year for data_list in all_data.values() for year, _ in data_list)))
     for year in years:
@@ -67,7 +70,7 @@ def load_and_preprocess_data():
         if yearly_growths:
             national_data.append((year, np.mean(yearly_growths)))
 
-    all_data['Nasional'] = national_data
+    all_data['Nasional'] = sorted(national_data, key=lambda item: item[0])
     return all_data
 
 def train_and_predict(data, n_years=3):
@@ -76,9 +79,10 @@ def train_and_predict(data, n_years=3):
     future_years = np.array([current_year + i for i in range(1, n_years + 1)]).reshape(-1, 1)
 
     for entity, yearly_data in data.items():
-        if len(yearly_data) >= 2:
-            years = np.array([item[0] for item in yearly_data]).reshape(-1, 1)
-            growths = np.array([item[1] for item in yearly_data])
+        valid_data = [(y, g) for y, g in yearly_data if not np.isnan(g)]
+        if len(valid_data) >= 2:
+            years = np.array([item[0] for item in valid_data]).reshape(-1, 1)
+            growths = np.array([item[1] for item in valid_data])
 
             model = LinearRegression()
             model.fit(years, growths)
@@ -91,12 +95,29 @@ def train_and_predict(data, n_years=3):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    predictions = None
-    pdrb_data = None
-    if request.method == 'POST':
-        pdrb_data = load_and_preprocess_data()
-        predictions = train_and_predict(pdrb_data, n_years=3)
-    return render_template('index.html', predictions=predictions, pdrb_data=pdrb_data)
+    pdrb_data = load_and_preprocess_data()
+    predictions = train_and_predict(pdrb_data, n_years=3)
+    # Ambil semua data CSV di folder data/
+    data_dir = 'data'
+    semua_sumber_data = []
+    for filename in sorted(os.listdir(data_dir)):
+        if filename.endswith('.csv') and 'Laju Pertumbuhan Produk Domestik Regional Bruto' in filename:
+            # Ekstrak tahun dari nama file
+            year_str = filename.split(',')[-1].split('.')[0].strip()
+            try:
+                tahun = int(year_str)
+            except ValueError:
+                try:
+                    tahun = int(year_str.split('(')[0].strip())
+                except ValueError:
+                    tahun = year_str
+            filepath = os.path.join(data_dir, filename)
+            df = pd.read_csv(filepath)
+            header = list(df.columns)
+            data = df.values.tolist()
+            semua_sumber_data.append({'tahun': tahun, 'header': header, 'data': data, 'filename': filename})
+    semua_sumber_data.sort(key=lambda x: x['tahun'])
+    return render_template('index.html', predictions=predictions, pdrb_data=pdrb_data, semua_sumber_data=semua_sumber_data)
 
 if __name__ == '__main__':
     app.run(debug=True)

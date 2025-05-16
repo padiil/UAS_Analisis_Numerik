@@ -1,77 +1,130 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Prediksi Pertumbuhan PDRB</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-      /* Pastikan garis D3.js tidak memiliki fill */
-      .line {
-        fill: none;
-      }
-      .line-predicted {
-        fill: none;
-      }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body class="bg-gray-100 text-gray-900">
-    <div
-      class="container mx-auto p-6 bg-white shadow-lg rounded-lg mt-10 mb-10"
+    <!-- Floating Navbar/Daftar Isi -->
+    <!-- Tombol TOC untuk mobile (hanya saat tertutup) -->
+    <button
+      id="toc-toggle-btn"
+      class="fixed top-4 left-4 z-50 bg-blue-600 text-white px-4 py-2 rounded shadow-lg md:hidden transition"
+      style="display: block"
     >
-      <h1 class="text-3xl font-bold text-center mb-8 text-blue-700">
-        Prediksi Pertumbuhan PDRB Provinsi di Indonesia
-      </h1>
-
-      <form method="POST" class="text-center mb-8">
-        <button
-          type="submit"
-          class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300"
-        >
-          Lihat Prediksi
-        </button>
-      </form>
-
-      {% if predictions %}
-      <div class="graph-container mb-10 p-6 bg-white shadow-md rounded-lg">
-        <h2 class="text-2xl font-semibold border-b-2 pb-3 mb-6 text-gray-800">
-          Prediksi Nasional
-        </h2>
-        <div id="national-graph" class="w-full h-96"></div>
-        <h3 class="text-xl font-medium mt-8 mb-4 text-gray-700">
-          Tabel Prediksi Nasional
-        </h3>
-        <table
-          class="min-w-full bg-white border border-gray-300 rounded-lg overflow-hidden"
-        >
-          <thead>
-            <tr class="bg-blue-600 text-white">
-              <th class="py-3 px-4 text-left">Tahun</th>
-              <th class="py-3 px-4 text-left">Prediksi Pertumbuhan (%)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for year, prediction in predictions.Nasional %}
-            <tr class="border-b border-gray-200">
-              <td class="py-3 px-4">{{ year }}</td>
-              <td class="py-3 px-4">{{ "%.2f" | format(prediction) }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <h2 class="text-2xl font-semibold border-b-2 pb-3 mb-6 text-gray-800">
-        Prediksi per Provinsi
-      </h2>
-      <div id="provincial-graphs" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      ☰ Daftar Isi
+    </button>
+    <nav
+      id="toc-navbar"
+      class="md:mt-6 fixed top-0 left-0 z-50 bg-white/95 shadow-lg rounded-lg p-3 w-64 max-h-[90vh] overflow-y-auto hidden md:block transition-transform duration-300 md:top-4 md:left-4 md:rounded-lg md:p-3 md:w-64 md:max-h-[90vh] md:bg-white/90"
+    >
+      <!-- Tombol tutup di dalam panel untuk mobile -->
+      <button
+        id="toc-close-btn"
+        class="md:hidden absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded shadow"
+      >
+        ✕
+      </button>
+      <h2 class="text-lg font-bold mb-2 text-blue-700">Daftar Isi</h2>
+      <ul class="space-y-2 text-sm">
+        <li>
+          <a href="#sumber-data" class="text-blue-600 hover:underline"
+            >Semua Sumber Data (CSV)</a
+          >
+        </li>
+        <li>
+          <a href="#nasional" class="text-blue-600 hover:underline"
+            >Grafik & Tabel Nasional</a
+          >
+        </li>
+        <li>
+          <a
+            href="#penjelasan-program-dan-perhitungan"
+            class="text-blue-600 hover:underline"
+            >Penjelasan Program & Perhitungan</a
+          >
+        </li>
+        <li class="font-semibold mt-2">Grafik & Tabel per Provinsi:</li>
         {% for provinsi, preds in predictions.items() %} {% if provinsi !=
         'Nasional' %}
-        <div class="graph-container p-6 bg-white shadow-md rounded-lg">
-          <h3 class="text-xl font-medium mb-4 text-gray-700">{{ provinsi }}</h3>
-          <div id="graph-{{ loop.index }}" class="w-full h-80"></div>
-          <h4 class="text-lg font-medium mt-6 mb-3 text-gray-600">
-            Tabel Prediksi {{ provinsi }}
-          </h4>
+        <li class="ml-3">
+          <a
+            href="#provinsi-{{ loop.index }}"
+            class="text-blue-500 hover:underline"
+            >{{ provinsi }}</a
+          >
+        </li>
+        {% endif %} {% endfor %}
+      </ul>
+    </nav>
+    <div
+      class="container mx-auto bg-white shadow-lg rounded-lg mt-10 mb-10 md:ml-72"
+    >
+      <div class="p-6 mx-auto">
+        <h1 class="text-3xl font-bold text-center mb-8 text-blue-700">
+          Prediksi Pertumbuhan PDRB Provinsi di Indonesia
+        </h1>
+
+        <div id="sumber-data" class="mb-10 p-6 bg-white shadow-md rounded-lg">
+          <h2 class="text-2xl font-semibold border-b-2 pb-3 mb-6 text-gray-800">
+            Semua Sumber Data (CSV)
+          </h2>
+          <button
+            id="toggle-sumber-btn"
+            class="mb-4 px-4 py-2 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition"
+          >
+            Tampilkan Semua Sumber Data
+          </button>
+          <div id="sumber-data-section" class="flex flex-wrap gap-6 hidden">
+            {% for sumber in semua_sumber_data %}
+            <div
+              class="mb-4 min-w-[220px] max-w-xs overflow-x-auto border border-gray-200 rounded bg-gray-50 shadow-sm"
+            >
+              <div
+                class="px-2 py-1 text-xs font-semibold bg-gray-200 text-gray-700 border-b border-gray-300 sticky top-0 z-10"
+              >
+                Tahun: {{ sumber.tahun }}<br /><span class="font-normal"
+                  >{{ sumber.filename }}</span
+                >
+              </div>
+              <table class="text-xs min-w-full whitespace-nowrap">
+                <thead>
+                  <tr class="bg-gray-100">
+                    {% for col in sumber.header %}
+                    <th class="py-1 px-2 text-left font-semibold">{{ col }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in sumber.data %}
+                  <tr class="border-b border-gray-100">
+                    {% for cell in row %}
+                    <td class="py-1 px-2">{{ cell }}</td>
+                    {% endfor %}
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        {% if predictions %}
+        <div
+          id="nasional"
+          class="graph-container mb-10 p-6 bg-white shadow-md rounded-lg"
+        >
+          <h2 class="text-2xl font-semibold border-b-2 pb-3 mb-6 text-gray-800">
+            Prediksi Nasional
+          </h2>
+          <div id="national-graph" class="w-full h-96"></div>
+          <h3 class="text-xl font-medium mt-8 mb-4 text-gray-700">
+            Tabel Prediksi Nasional
+          </h3>
           <table
             class="min-w-full bg-white border border-gray-300 rounded-lg overflow-hidden"
           >
@@ -82,194 +135,147 @@
               </tr>
             </thead>
             <tbody>
-              {% for year, prediction in preds %}
+              {% for year, prediction in predictions.Nasional %}
               <tr class="border-b border-gray-200">
                 <td class="py-3 px-4">{{ year }}</td>
-                <td>
-                  {% if prediction is string %} {{ prediction }} {% else %} {{
-                  "%.2f" | format(prediction) }} {% endif %}
-                </td>
+                <td class="py-3 px-4">{{ "%.2f" | format(prediction) }}</td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        {% endif %} {% endfor %}
+
+        <h2 class="text-2xl font-semibold border-b-2 pb-3 mb-6 text-gray-800">
+          Prediksi per Provinsi
+        </h2>
+        <div
+          id="provincial-graphs"
+          class="grid grid-cols-1 md:grid-cols-2 gap-8"
+        >
+          {% for provinsi, preds in predictions.items() %} {% if provinsi !=
+          'Nasional' %}
+          <div
+            id="provinsi-{{ loop.index }}"
+            class="graph-container p-6 bg-white shadow-md rounded-lg"
+          >
+            <h3 class="text-xl font-medium mb-4 text-gray-700">
+              {{ provinsi }}
+            </h3>
+            <div id="graph-{{ loop.index }}" class="w-full h-80"></div>
+            <h4 class="text-lg font-medium mt-6 mb-3 text-gray-600">
+              Tabel Prediksi {{ provinsi }}
+            </h4>
+            <table
+              class="min-w-full bg-white border border-gray-300 rounded-lg overflow-hidden"
+            >
+              <thead>
+                <tr class="bg-blue-600 text-white">
+                  <th class="py-3 px-4 text-left">Tahun</th>
+                  <th class="py-3 px-4 text-left">Prediksi Pertumbuhan (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for year, prediction in preds %}
+                <tr class="border-b border-gray-200">
+                  <td class="py-3 px-4">{{ year }}</td>
+                  <td>
+                    {% if prediction is string %} {{ prediction }} {% else %} {{
+                    "%.2f" | format(prediction) }} {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %} {% endfor %}
+        </div>
+
+        <p class="text-center text-gray-600 mt-10 text-sm">
+          <strong>Catatan:</strong> Prediksi ini didasarkan pada model regresi
+          linier sederhana menggunakan data historis yang tersedia. Akurasi
+          prediksi dapat bervariasi.
+        </p>
+
+        <!-- penjelasan program dan perhitungan -->
+        <div class="mb-10 p-6 bg-white shadow-md rounded-lg" id="penjelasan-program-dan-perhitungan">
+          <h2 class="text-2xl font-semibold border-b-2 pb-3 mb-6 text-gray-800">
+            Penjelasan Program & Perhitungan
+          </h2>
+          <div class="text-sm text-gray-800 space-y-4">
+            <p><strong>Data Awal:</strong><br>
+              Data yang digunakan bersumber dari Badan Pusat Statistik (BPS) Indonesia, mencakup Laju Pertumbuhan Produk Domestik Regional Bruto (PDRB) Atas Dasar Harga Konstan untuk 38 Provinsi selama periode 2015–2024. Data diolah dari file CSV yang diunggah ke sistem.
+            </p>
+            <p><strong>Implementasi Model Regresi Linier:</strong><br>
+              Prediksi laju pertumbuhan PDRB tiap provinsi dilakukan dengan regresi linier sederhana, memodelkan hubungan antara tahun (X) dan pertumbuhan (Y). Model ini digunakan karena data bersifat time series dan tren linier cukup dominan. Rumus model: <span class="font-mono">Y = intercept + slope * X</span>, di mana <span class="font-mono">Y</span> adalah prediksi pertumbuhan, <span class="font-mono">X</span> adalah tahun, <span class="font-mono">intercept</span> dan <span class="font-mono">slope</span> didapat dari fitting data historis.
+            </p>
+            <p><strong>Alur Sistem:</strong><br>
+            <ol class="list-decimal ml-6">
+              <li><b>Input Data:</b> Sistem membaca file CSV berisi nama provinsi dan laju pertumbuhan per tahun.</li>
+              <li><b>Proses Prediksi:</b> Backend Python (Flask) membaca data dengan <span class="font-mono">pandas</span>, menghitung prediksi 3 tahun ke depan (2025–2027) menggunakan <span class="font-mono">LinearRegression</span> dari <span class="font-mono">sklearn</span> dan <span class="font-mono">numpy</span>.</li>
+              <li><b>Visualisasi Hasil:</b> Tabel prediksi dan grafik interaktif (D3.js) menampilkan tren historis (2015–2024) dan prediksi (2025–2027).</li>
+            </ol>
+            </p>
+            <p><strong>Teknologi yang Digunakan:</strong><br>
+              <ul class="list-disc ml-6">
+                <li>Frontend: HTML, CSS (TailwindCSS), JavaScript (D3.js)</li>
+                <li>Backend: Python Flask</li>
+                <li>Library: pandas, sklearn, numpy, D3.js</li>
+              </ul>
+            </p>
+            <p><strong>Analisis Hasil Prediksi:</strong><br>
+              <ul class="list-disc ml-6">
+                <li>Model regresi linier cocok untuk provinsi dengan tren stabil (R² tinggi, RMSE rendah).</li>
+                <li>Provinsi dengan fluktuasi ekstrem (misal NTB, Maluku Utara) menghasilkan prediksi kurang akurat.</li>
+                <li>Prediksi nasional menunjukkan tren pemulihan pasca-pandemi yang stabil.</li>
+                <li>Limitasi: Model tidak mempertimbangkan faktor eksternal/non-linier, dan provinsi baru dengan data minim prediksinya kurang andal.</li>
+              </ul>
+            </p>
+          </div>
+        </div>
       </div>
 
-      <p class="text-center text-gray-600 mt-10 text-sm">
-        <strong>Catatan:</strong> Prediksi ini didasarkan pada model regresi
-        linier sederhana menggunakan data historis yang tersedia. Akurasi
-        prediksi dapat bervariasi.
-      </p>
+      <footer class="bg-gray-900 text-gray-100 py-8 mt-10">
+        <div
+          class="container w-full px-4 lg:px-12 text-center flex flex-col lg:flex-row items-center justify-between gap-4"
+        >
+          <div class="mb-4">
+            <img
+              src="{{ url_for('static', filename='img/logoUnsil.png') }}"
+              alt="Logo Unsil"
+              class="mx-auto mb-2 w-16 h-16"
+            />
+            <h3 class="text-lg font-bold">Universitas Siliwangi</h3>
+            <p class="text-sm">Fakultas Teknik - Program Studi Informatika</p>
+          </div>
+          <div class="mb-4">
+            <h4 class="font-semibold text-base mb-1">Tentang Website</h4>
+            <p class="text-xs max-w-xl mx-auto">
+              Website ini menampilkan visualisasi, prediksi, dan sumber data
+              pertumbuhan Produk Domestik Regional Bruto (PDRB) provinsi di
+              Indonesia berdasarkan data BPS. Dibuat untuk keperluan tugas UAS
+              Analisis Numerik oleh mahasiswa Informatika Universitas Siliwangi.
+            </p>
+          </div>
+          <div>
+            <h4 class="font-semibold text-base mb-1">Anggota Kelompok</h4>
+            <ul class="text-xs text-center lg:text-start inline-block text-left mx-auto">
+              <li>SHELVA NUR FATIMAH - 237006069</li>
+              <li>FADHIL GANI - 237006082</li>
+              <li>BAJSAN ARSYURROHMAN - 237006088</li>
+              <li>YUSA PUTRA ROSDIANA - 237006091</li>
+            </ul>
+          </div>
+        </div>
+        <div class="mt-4 text-xs text-gray-400 mx-auto text-center">
+          &copy; 2025 Universitas Siliwangi - Informatika
+        </div>
+      </footer>
 
       <script>
-        var predictions = {{ predictions | tojson }};
-        var pdrb_data = {{ pdrb_data | tojson }};
-
-        var margin = {top: 20, right: 30, bottom: 40, left: 50},
-            width = 600 - margin.left - margin.right,
-            height = 300 - margin.top - margin.bottom;
-
-        function drawGraph(historicalData, predictedData, containerId) {
-            // Kosongkan konten container sebelum menggambar grafik baru
-            d3.select("#" + containerId).html("");
-
-            var container = d3.select("#" + containerId);
-            var containerWidth = container.node().getBoundingClientRect().width;
-            var containerHeight = container.node().getBoundingClientRect().height;
-
-            var width = containerWidth - margin.left - margin.right;
-            var height = containerHeight - margin.top - margin.bottom;
-
-            var combinedData = historicalData.concat(predictedData);
-
-            if (!combinedData || combinedData.length === 0 || (historicalData.length > 0 && typeof historicalData[0][0] === 'string')) {
-                d3.select("#" + containerId).html("<p class='text-red-500 text-center'>Tidak cukup data untuk menampilkan grafik.</p>");
-                return;
-            }
-
-            var svg = d3.select("#" + containerId)
-                .append("svg")
-                .attr("width", width + margin.left + margin.right)
-                .attr("height", height + margin.bottom + margin.top)
-                .append("g")
-                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-            var x = d3.scaleLinear()
-                .domain(d3.extent(combinedData, function(d) { return d[0]; }))
-                .range([0, width]);
-            svg.append("g")
-                .attr("transform", "translate(0," + height + ")")
-                .call(d3.axisBottom(x).tickFormat(d3.format("d")));
-
-            var y = d3.scaleLinear()
-                .domain(d3.extent(combinedData, function(d) { return d[1]; }))
-                .range([height, 0]);
-            svg.append("g")
-                .call(d3.axisLeft(y).ticks(5)); // Mengatur jumlah ticks pada sumbu Y
-
-            // Garis Historis
-            var lineHistorical = d3.line()
-                .x(function(d) { return x(d[0]); })
-                .y(function(d) { return y(d[1]); });
-
-            svg.append("path")
-                .datum(historicalData)
-                .attr("class", "line stroke-blue-500 stroke-2")
-                .attr("d", lineHistorical);
-
-            // Garis Prediksi
-            var linePredicted = d3.line()
-                .x(function(d) { return x(d[0]); })
-                .y(function(d) { return y(d[1]); });
-
-            // Temukan tahun terakhir data historis
-            var lastHistoricalYear = d3.max(historicalData, function(d) { return d[0]; });
-
-            // Filter data prediksi yang dimulai setelah tahun terakhir data historis
-            var filteredPredictedData = predictedData.filter(function(d) {
-                return d[0] > lastHistoricalYear;
-            });
-
-            // Gabungkan titik terakhir data historis dengan data prediksi
-            var combinedPredictedData = [];
-            if (historicalData.length > 0) {
-                combinedPredictedData.push(historicalData[historicalData.length - 1]);
-            }
-            combinedPredictedData = combinedPredictedData.concat(filteredPredictedData);
-
-            if (combinedPredictedData.length > 1) {
-                svg.append("path")
-                    .datum(combinedPredictedData)
-                    .attr("class", "line-predicted stroke-orange-500 stroke-2 stroke-dashed")
-                    .attr("d", linePredicted);
-            }
-
-
-            // Tooltip
-            var tooltip = d3.select("body").append("div")
-                .attr("class", "absolute z-10 p-2 text-sm leading-none text-white whitespace-no-wrap bg-gray-800 rounded shadow-md opacity-0 transition-opacity duration-200 pointer-events-none");
-
-            // Titik-titik data historis
-            svg.selectAll(".dot-historical")
-                .data(historicalData)
-                .enter().append("circle")
-                .attr("r", 5)
-                .attr("cx", function(d) { return x(d[0]); })
-                .attr("cy", function(d) { return y(d[1]); })
-                .attr("class", "dot fill-blue-500 stroke-white stroke-1.5")
-                .on("mouseover", function(event, d) {
-                    tooltip.transition()
-                        .duration(200)
-                        .style("opacity", .9);
-                    tooltip.html("Tahun: " + d[0] + "<br/>Pertumbuhan: " + d3.format(".2f")(d[1]) + "%")
-                        .style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 28) + "px");
-                })
-                .on("mouseout", function(d) {
-                    tooltip.transition()
-                        .duration(500)
-                        .style("opacity", 0);
-                });
-
-            // Titik-titik data prediksi
-            svg.selectAll(".dot-predicted")
-                .data(filteredPredictedData)
-                .enter().append("circle")
-                .attr("r", 5)
-                .attr("cx", function(d) { return x(d[0]); })
-                .attr("cy", function(d) { return y(d[1]); })
-                .attr("class", "dot-predicted fill-orange-500 stroke-white stroke-1.5")
-                .on("mouseover", function(event, d) {
-                    tooltip.transition()
-                        .duration(200)
-                        .style("opacity", .9);
-                    tooltip.html("Tahun (Prediksi): " + d[0] + "<br/>Pertumbuhan: " + d3.format(".2f")(d[1]) + "%")
-                        .style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 28) + "px");
-                })
-                .on("mouseout", function(d) {
-                    tooltip.transition()
-                        .duration(500)
-                        .style("opacity", 0);
-                });
-
-            // Label Sumbu X
-            svg.append("text")
-                .attr("transform", "translate(" + (width/2) + " ," + (height + margin.top + 20) + ")")
-                .attr("class", "text-gray-600 text-sm")
-                .style("text-anchor", "middle")
-                .text("Tahun");
-
-            // Label Sumbu Y
-            svg.append("text")
-                .attr("transform", "rotate(-90)")
-                .attr("y", 0 - margin.left)
-                .attr("x",0 - (height / 2))
-                .attr("dy", "1em")
-                .attr("class", "text-gray-600 text-sm")
-                .style("text-anchor", "middle")
-                .text("Pertumbuhan (%)");
-        }
-
-        // Gambar grafik nasional
-        if (predictions && predictions.Nasional && pdrb_data && pdrb_data.Nasional) {
-            drawGraph(pdrb_data.Nasional, predictions.Nasional, "national-graph");
-        }
-
-        // Gambar grafik per provinsi
-        if (predictions && pdrb_data) {
-            var i = 1; // Mulai dari 1 karena loop.index di Jinja2 mulai dari 1
-            for (var provinsi in predictions) {
-                if (provinsi !== 'Nasional' && pdrb_data[provinsi]) {
-                    var containerId = "graph-" + i;
-                    drawGraph(pdrb_data[provinsi], predictions[provinsi], containerId);
-                    i++; // Tingkatkan counter untuk provinsi berikutnya
-                }
-            }
-        }
+        window.predictions = {{ predictions | tojson | safe }};
+        window.pdrb_data = {{ pdrb_data | tojson | safe }};
       </script>
+      <script src="{{ url_for('static', filename='main.js') }}"></script>
       {% endif %}
     </div>
   </body>
