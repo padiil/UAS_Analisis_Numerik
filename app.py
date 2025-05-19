@@ -1,6 +1,7 @@
 from flask import Flask, render_template
 import pandas as pd
 import os
+import sys
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
@@ -9,7 +10,7 @@ app = Flask(__name__)
 def load_and_preprocess_data():
     data_dir = 'data'
     all_data = {}
-    for filename in os.listdir(data_dir):
+    for filename in sorted(os.listdir(data_dir)):
         if filename.endswith('.csv') and 'Laju Pertumbuhan Produk Domestik Regional Bruto' in filename:
             year_str = filename.split(',')[-1].split('.')[0].strip()
             try:
@@ -18,60 +19,65 @@ def load_and_preprocess_data():
                 try:
                     year = int(year_str.split('(')[0].strip())
                 except ValueError:
-                    print(f"Could not extract year from filename: {filename}")
+                    print(f"Could not extract year from filename: {filename}", file=sys.stderr)
                     continue
 
             filepath = os.path.join(data_dir, filename)
-            df = pd.read_csv(filepath)
-
-            data_start_row = None
-            for i, row in df.iterrows():
-                if isinstance(row.iloc[0], str) and row.iloc[0] not in ['Provinsi', '']:
-                    data_start_row = i
-                    break
-
-            if data_start_row is None:
-                print(f"Could not find data start in {filename}")
+            try:
+                df = pd.read_csv(filepath, engine="python", on_bad_lines="skip", skip_blank_lines=True)
+            except Exception as e:
+                print(f"[ERROR] Failed to read {filename}: {e}", file=sys.stderr)
                 continue
 
-            df = pd.read_csv(filepath, skiprows=data_start_row)
+            # Cari kolom pertumbuhan yang benar
+            growth_col = [col for col in df.columns if 'Laju Pertumbuhan Produk Domestik Bruto' in col or 'Laju Pertumbuhan Produk Domestik Regional Bruto' in col][0]
+            df = df.rename(columns={growth_col: 'Laju_Pertumbuhan'})
 
-            data_end_row = None
-            for i, row in df.iterrows():
-                if pd.isna(row.iloc[0]) or row.iloc[0] in ['Catatan', 'The difference between the total of GRDP of 34 Provinces and the GDP of Indonesia due to the statistical discrepancies.Data 2021: Preliminary figuresData 2022: Very Preliminary figures,']:
-                    data_end_row = i
-                    break
+            # --- FIX: Filter baris provinsi valid, buang baris agregat seperti "Jumlah 34 Provinsi" dan baris kosong ---
+            def is_valid_provinsi(x):
+                if not isinstance(x, str):
+                    return False
+                x_strip = x.strip()
+                if x_strip in ['', 'Provinsi', 'Catatan']:
+                    return False
+                if 'jumlah' in x_strip.lower() or 'total' in x_strip.lower():
+                    return False
+                if x_strip == ',' or x_strip == '.':
+                    return False
+                return True
 
-            if data_end_row is not None:
-                df = df.iloc[:data_end_row]
-
-            growth_col = [col for col in df.columns if 'Laju Pertumbuhan Produk Domestik Bruto' in col][0]
-            df = df.rename(columns={'Provinsi': 'Provinsi', growth_col: 'Laju_Pertumbuhan'})
-
+            df = df[df['Provinsi'].apply(is_valid_provinsi)]
+            # --- FIX: Only keep numeric values, drop ... and other non-numeric ---
             df['Laju_Pertumbuhan'] = pd.to_numeric(df['Laju_Pertumbuhan'], errors='coerce')
             df = df.dropna(subset=['Laju_Pertumbuhan'])
 
             for index, row in df.iterrows():
-                provinsi = row['Provinsi']
+                provinsi = row['Provinsi'].strip()
                 pertumbuhan = row['Laju_Pertumbuhan']
                 if provinsi not in all_data:
-                    all_data[provinsi] = []
-                all_data[provinsi].append((year, pertumbuhan))
+                    all_data[provinsi] = {}
+                # --- Jangan timpa data tahun yang sudah ada, hanya isi jika belum ada ---
+                if year not in all_data[provinsi]:
+                    all_data[provinsi][year] = pertumbuhan
 
+    filtered_all_data = {}
     for provinsi in all_data:
-        all_data[provinsi].sort(key=lambda item: item[0])
+        yearly_dict = all_data[provinsi]
+        tahun_list = sorted(yearly_dict.items(), key=lambda item: item[0])
+        if len(tahun_list) > 1:
+            filtered_all_data[provinsi] = tahun_list
 
     national_data = []
-    years = sorted(list(set(year for data_list in all_data.values() for year, _ in data_list)))
+    years = sorted(list(set(year for data_list in filtered_all_data.values() for year, _ in data_list)))
     for year in years:
         yearly_growths = []
-        for provinsi in all_data:
-            yearly_growths.extend([growth for y, growth in all_data[provinsi] if y == year])
+        for provinsi in filtered_all_data:
+            yearly_growths.extend([growth for y, growth in filtered_all_data[provinsi] if y == year])
         if yearly_growths:
             national_data.append((year, np.mean(yearly_growths)))
 
-    all_data['Nasional'] = sorted(national_data, key=lambda item: item[0])
-    return all_data
+    filtered_all_data['Nasional'] = sorted(national_data, key=lambda item: item[0])
+    return filtered_all_data
 
 def train_and_predict(data, n_years=3):
     predictions = {}
